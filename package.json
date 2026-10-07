@@ -1,0 +1,14 @@
+{
+  "name": "majlis-32-demo",
+  "version": "1.0.0",
+  "description": "Authoritative 4-player card game demo: three.js table + server loop + coin ledger",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "serve": "node scripts/serve.mjs 8080"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": true
+}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Majlis 32 · the deck</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+  body { margin: 0; background: #110a06; color: #f0e5cf; font-family: Tajawal, system-ui, sans-serif; }
+  header { padding: 18px clamp(12px, 3vw, 32px); border-bottom: 1px solid #3a2a1c; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  h1 { margin: 0; font-family: 'Reem Kufi', Tajawal; color: #f0cf8a; font-size: 24px; }
+  header p { margin: 0; color: #b19d84; }
+  a { color: #d9ae5f; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 14px; padding: 20px clamp(12px, 3vw, 32px) 40px; }
+  #grid canvas { width: 100%; height: auto; filter: drop-shadow(0 6px 14px rgba(0,0,0,.5)); }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<header><h1>The 32-card deck</h1><p>Drawn in code: vector suits, original court panels, 8-point star back. Ready to re-skin to your brand. <a href="./">Back to the table</a></p></header>
+<div id="grid"></div>
+<script type="module">
+import { drawFace, drawBack } from './src/cards.js';
+import { makeDeck } from './src/engine/rules.js';
+await Promise.all([document.fonts.load('800 58px Tajawal', '10AKQJ'), document.fonts.load('700 96px "Reem Kufi"', '٣٢JQK')]).catch(() => {});
+const grid = document.getElementById('grid');
+for (const c of [...makeDeck(), 'BACK']) grid.appendChild(c === 'BACK' ? drawBack() : drawFace(c));
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

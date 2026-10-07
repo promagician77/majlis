@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Majlis 32 · authoritative card table demo</title>
+<meta name="description" content="Playable 3D four-player card table with a server-authoritative match loop, commit-reveal shuffles, reconnect, spectators, Arabic/English and a closed-loop coin ledger.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e4a3e'/%3E%3Cpath d='M32 8l7 9 11-1-1 11 9 7-9 7 1 11-11-1-7 9-7-9-11 1 1-11-9-7 9-7-1-11 11 1z' fill='none' stroke='%23d9ae5f' stroke-width='4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/addons/" } }</script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" class="logo" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0e4a3e"/><path d="M32 8l7 9 11-1-1 11 9 7-9 7 1 11-11-1-7 9-7-9-11 1 1-11-9-7 9-7-1-11 11 1z" fill="none" stroke="#d9ae5f" stroke-width="3.5"/><text x="32" y="40" text-anchor="middle" font-family="Reem Kufi" font-weight="700" font-size="19" fill="#e8c27a">٣٢</text></svg>
+    <div><b data-i18n="title">Majlis 32</b><small data-i18n="tagline">Server-authoritative 4-player card table</small></div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" class="on" data-tab="play" data-i18n="tab_play">Play</button>
+    <button role="tab" data-tab="truth" data-i18n="tab_truth">Server truth</button>
+    <button role="tab" data-tab="ledger" data-i18n="tab_ledger">Coin ledger</button>
+    <button role="tab" data-tab="stress" data-i18n="tab_stress">Stress test</button>
+    <button role="tab" data-tab="plan" data-i18n="tab_plan">Build plan</button>
+  </nav>
+  <div class="lang" role="group" aria-label="Language"><button data-lang="en" class="on">EN</button><button data-lang="ar">عربي</button></div>
+</header>
+
+<main>
+<!-- ===================== PLAY ===================== -->
+<section id="tab-play" class="tab on">
+  <div id="stage">
+    <div id="gl"></div>
+    <div id="hud">
+      <div class="hud-top">
+        <div class="pill" id="roundPill">—</div>
+        <div class="pill gold" id="potPill">—</div>
+        <div class="pill seal" id="sealPill" title="SHA-256 commitment of the shuffled deck, published before any card is dealt"><svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0110 0v3h1.5v10h-13V11zm2 0h6V8a3 3 0 00-6 0z" fill="currentColor"/></svg><span>—</span></div>
+        <div class="grow"></div>
+        <div class="pill" id="netPill"><i></i><span>—</span></div>
+        <button class="ghost icon" id="muteBtn" title="Sound" aria-label="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="w" d="M16 8.5a5 5 0 010 7M18.5 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="x" d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="ghost" id="dropBtn" title="Drop connection"><svg viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0120 0M5.5 12a10 10 0 0113 0M9 15.5a5 5 0 016 0M12 19h.01M3 3l18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span data-i18n="drop">Drop connection</span></button>
+        <button class="ghost" id="specBtn" title="Watch as spectator"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg><span data-i18n="spectate">Watch as spectator</span></button>
+      </div>
+      <div class="seat" data-seat="0"></div><div class="seat" data-seat="1"></div><div class="seat" data-seat="2"></div><div class="seat" data-seat="3"></div>
+      <div id="pops"></div>
+      <div id="actionBar"><div class="hint" id="hint"></div><div class="btns" id="btns"></div></div>
+      <div id="chatWrap"><button class="round-btn" id="chatBtn" aria-label="Quick chat"><svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button><div id="chatMenu"></div></div>
+      <div id="toasts"></div>
+      <div id="offline" class="veil"><div class="card"><b data-i18n="offline">Offline</b><p data-i18n="dropped_note"></p><button class="primary" id="reconBtn" data-i18n="reconnect">Reconnect</button></div></div>
+      <div id="specBanner" class="banner" data-i18n="spectating"></div>
+      <div id="result" class="veil"><div class="card wide" id="resultCard"></div></div>
+      <div id="lobby" class="veil show">
+        <div class="card lobby">
+          <svg viewBox="0 0 64 64" class="big-logo" aria-hidden="true"><path d="M32 4l8.6 11.2 14-1.3-1.3 14L64 32l-10.7 8.6 1.3 14-14-1.3L32 64l-8.6-10.7-14 1.3 1.3-14L0 32l10.7-8.6-1.3-14 14 1.3z" fill="#0e4a3e" stroke="#d9ae5f" stroke-width="2"/><text x="32" y="41" text-anchor="middle" font-family="Reem Kufi" font-weight="700" font-size="22" fill="#e8c27a">٣٢</text></svg>
+          <h1 data-i18n="title">Majlis 32</h1>
+          <p class="muted" data-i18n="lobby_note"></p>
+          <div class="label" data-i18n="stake">Entry coins</div>
+          <div class="seg" id="stakeSeg"><button data-ante="10" class="on">10</button><button data-ante="50">50</button><button data-ante="100">100</button></div>
+          <div class="mm" id="mm"></div>
+          <button class="primary big" id="findBtn" disabled data-i18n="find">Find a table</button>
+          <div class="load" id="loadBar"><i></i><span>Loading table…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== SERVER TRUTH ===================== -->
+<section id="tab-truth" class="tab">
+  <div class="wrap" dir="ltr" lang="en">
+    <div class="stats">
+      <div class="stat good"><b id="stLeak">0</b><span>Opponent cards your phone has received before the reveal</span></div>
+      <div class="stat"><b id="stPk">0</b><span>Packets delivered to your phone</span></div>
+      <div class="stat"><b id="stAvg">0 B</b><span>Average packet size</span></div>
+      <div class="stat"><b id="stRej">0</b><span>Intents the server refused</span></div>
+    </div>
+    <div class="feeds">
+      <div class="feed"><h3>Your phone <em>seat 1 · private hand + public table</em></h3><ol id="feed0"></ol></div>
+      <div class="feed"><h3>Noura's phone <em>seat 3 · sees only her own hand</em></h3><ol id="feed2"></ol></div>
+      <div class="feed"><h3>Spectator <em>public only · 2.5 s delay (anti-ghosting)</em></h3><ol id="feedS"></ol></div>
+      <div class="feed danger"><h3>Server memory <em>never serialised to any socket</em></h3><div id="srvMem"></div></div>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <h2>Try to cheat</h2>
+        <p class="muted">Each button sends a forged message from your phone through the same socket the game uses. The verdict comes back from the server thread.</p>
+        <div class="cheats" id="cheats"></div>
+        <table class="log"><thead><tr><th>Attempt</th><th>Sent</th><th>Server verdict</th><th>RTT</th></tr></thead><tbody id="cheatLog"></tbody></table>
+      </div>
+      <div class="panel">
+        <h2>Shuffle you can verify</h2>
+        <p class="muted">Before dealing, the server publishes <code>SHA-256(salt | deck)</code>. After the round it reveals salt and deck; your browser re-hashes them with WebCrypto.</p>
+        <div class="commit"><span>Commit, round <b id="cmRound">–</b></span><code id="cmHash">waiting for a round…</code></div>
+        <div class="commit"><span>Revealed salt</span><code id="cmSalt">–</code></div>
+        <div class="chips" id="cmDeck"></div>
+        <div class="verdict" id="cmVerdict"></div>
+        <h3 class="mt">Network</h3>
+        <label class="slider">Latency <input type="range" id="lat" min="0" max="400" step="10" value="70"><b id="latV">70 ms</b></label>
+        <label class="slider">Jitter <input type="range" id="jit" min="0" max="200" step="5" value="25"><b id="jitV">25 ms</b></label>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== LEDGER ===================== -->
+<section id="tab-ledger" class="tab">
+  <div class="wrap" dir="ltr" lang="en">
+    <div class="panel">
+      <h2>Closed-loop coins: the money path that does not exist</h2>
+      <svg viewBox="0 0 1100 250" class="flow" id="flowSvg" role="img" aria-label="Coin flow diagram">
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d9ae5f"/></marker>
+        <marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d0584e"/></marker></defs>
+        <g class="node"><rect x="10" y="20" width="170" height="64" rx="12"/><text x="95" y="48">Coin store (IAP)</text><text x="95" y="68" class="sm">Apple / Google receipt</text></g>
+        <g class="node"><rect x="10" y="150" width="170" height="64" rx="12"/><text x="95" y="178">Daily grant</text><text x="95" y="198" class="sm">server schedule</text></g>
+        <g class="node gold"><rect x="250" y="85" width="140" height="64" rx="12"/><text x="320" y="113">mint</text><text x="320" y="133" class="sm">only source of coins</text></g>
+        <g class="node em"><rect x="460" y="85" width="170" height="64" rx="12"/><text x="545" y="113">Player wallets</text><text x="545" y="133" class="sm" id="flWallets">–</text></g>
+        <g class="node"><rect x="720" y="10" width="170" height="64" rx="12"/><text x="805" y="38">Round escrow</text><text x="805" y="58" class="sm" id="flEscrow">–</text></g>
+        <g class="node"><rect x="720" y="160" width="170" height="64" rx="12"/><text x="805" y="188">Cosmetics sink</text><text x="805" y="208" class="sm">frames, card backs</text></g>
+        <g class="node bad"><rect x="950" y="85" width="140" height="64" rx="12"/><text x="1020" y="113">Bank / cash</text><text x="1020" y="133" class="sm">no account type</text></g>
+        <path d="M180 52 C215 52 220 105 248 110" class="ln"/><path d="M180 182 C215 182 220 130 248 125" class="ln"/>
+        <path d="M390 117 L458 117" class="ln"/>
+        <path d="M630 100 C670 90 680 45 718 42" class="ln"/><path d="M720 58 C690 70 670 110 632 112" class="ln"/>
+        <path d="M630 132 C670 140 680 190 718 192" class="ln"/>
+        <path d="M630 117 C780 117 830 117 948 117" class="ln bad"/>
+        <text x="790" y="108" class="x">✕</text>
+      </svg>
+      <div class="inv" id="inv"></div>
+      <div class="row-btns"><button class="ghost" id="replayBtn">Replay the last settlement</button><button class="ghost" id="cashBtn">Try to cash out 100 coins</button><span id="ledgerMsg" class="muted"></span></div>
+    </div>
+    <div class="two">
+      <div class="panel"><h2>Balances</h2><table class="log" id="balTable"></table></div>
+      <div class="panel"><h2>Journal <em class="muted" id="jCount"></em></h2><div class="scroll"><table class="log" id="jTable"></table></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== STRESS ===================== -->
+<section id="tab-stress" class="tab">
+  <div class="wrap" dir="ltr" lang="en">
+    <div class="panel">
+      <h2>Referee: play thousands of rounds against the real server code</h2>
+      <p class="muted">Runs in a separate worker. A referee replays every round from the public feed and checks it independently: hidden cards, follow-suit, trick winners, points, payouts, commit hashes (WebCrypto), ledger sums, and reconnect resyncs.</p>
+      <div class="row-btns">
+        <div class="seg" id="nSeg"><button data-n="100">100</button><button data-n="400" class="on">400</button><button data-n="1000">1,000</button></div>
+        <span class="muted">matches × 3 rounds</span><label class="chk"><input type="checkbox" id="hostile" checked> Hostile client on seat 1 (forged cards, replays, drops)</label>
+        <button class="primary" id="runBtn">Run</button>
+        <button class="ghost" id="leakBtn">Control: run a deliberately leaky server</button>
+      </div>
+      <div class="progress" id="prog"><i></i></div>
+    </div>
+    <div class="two">
+      <div class="panel"><h2>Checks</h2><div id="checks" class="checks"><p class="muted">Press Run.</p></div></div>
+      <div class="panel"><h2>What the server refused</h2><div id="rejBars" class="bars"><p class="muted">Turn on the hostile client to see forged traffic.</p></div><div id="thru" class="thru"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PLAN ===================== -->
+<section id="tab-plan" class="tab">
+  <div class="wrap" dir="ltr" lang="en">
+    <div class="panel">
+      <h2>Production architecture</h2>
+      <svg viewBox="0 0 1100 330" class="flow arch" role="img" aria-label="Architecture diagram">
+        <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#d9ae5f"/></marker></defs>
+        <g class="node em"><rect x="10" y="30" width="200" height="70" rx="12"/><text x="110" y="60">iOS · Android · Web</text><text x="110" y="82" class="sm">one TypeScript client (Capacitor)</text></g>
+        <g class="node"><rect x="10" y="130" width="200" height="70" rx="12"/><text x="110" y="160">three.js table + HTML UI</text><text x="110" y="182" class="sm">native Arabic shaping, RTL</text></g>
+        <g class="node"><rect x="10" y="230" width="200" height="70" rx="12"/><text x="110" y="260">Admin dashboard</text><text x="110" y="282" class="sm">players, ledger, reports, bans</text></g>
+        <g class="node gold big"><rect x="320" y="20" width="430" height="290" rx="16"/><text x="535" y="50">Nakama cluster · in-Kingdom region</text>
+          <text x="535" y="72" class="sm">Google Cloud Dammam today · AWS Saudi region when live</text></g>
+        <g class="node inner"><rect x="345" y="95" width="185" height="58" rx="10"/><text x="437" y="120">Match handler</text><text x="437" y="140" class="sm">server.js from this demo</text></g>
+        <g class="node inner"><rect x="545" y="95" width="185" height="58" rx="10"/><text x="637" y="120">Matchmaker + lobby</text><text x="637" y="140" class="sm">skill / entry bands</text></g>
+        <g class="node inner"><rect x="345" y="170" width="185" height="58" rx="10"/><text x="437" y="195">Chat + moderation</text><text x="437" y="215" class="sm">presets, reports, mutes</text></g>
+        <g class="node inner"><rect x="545" y="170" width="185" height="58" rx="10"/><text x="637" y="195">Wallet ledger</text><text x="637" y="215" class="sm">double-entry, idempotent</text></g>
+        <g class="node inner"><rect x="345" y="245" width="385" height="50" rx="10"/><text x="537" y="275">Bots · reconnect grace · spectator delay · rate limits</text></g>
+        <g class="node"><rect x="860" y="40" width="230" height="70" rx="12"/><text x="975" y="70">PostgreSQL</text><text x="975" y="92" class="sm">users, wallets, match history</text></g>
+        <g class="node"><rect x="860" y="135" width="230" height="70" rx="12"/><text x="975" y="165">App Store / Play billing</text><text x="975" y="187" class="sm">server-side receipt check → mint</text></g>
+        <g class="node"><rect x="860" y="230" width="230" height="70" rx="12"/><text x="975" y="260">Monitoring + load tests</text><text x="975" y="282" class="sm">this referee, at 10k bots</text></g>
+        <path d="M210 65 L318 110" class="ln2"/><path d="M318 140 L210 165" class="ln2"/><path d="M210 265 L318 230" class="ln2"/>
+        <path d="M750 120 L858 80" class="ln2"/><path d="M858 170 L750 200" class="ln2"/><path d="M750 260 L858 262" class="ln2"/>
+        <text x="268" y="70" class="sm lbl">wss</text>
+      </svg>
+    </div>
+    <div class="miles">
+      <div class="mile"><b>Weeks 1–3</b><h4>Rules + authoritative match</h4><p>Your rulebook in <code>rules.js</code>, Nakama match handler, commit-reveal deck, ledger, referee tests.</p><span>$3,200</span></div>
+      <div class="mile"><b>Weeks 4–6</b><h4>Table, lobby, matchmaking</h4><p>3D table and card art in your brand, animations, Arabic/English, lobby and matchmaking.</p><span>$3,800</span></div>
+      <div class="mile"><b>Weeks 7–9</b><h4>Live-ops features</h4><p>Reconnect, bots, spectator, chat moderation, subscriptions, admin dashboard.</p><span>$3,800</span></div>
+      <div class="mile"><b>Weeks 10–12</b><h4>Hardening + launch</h4><p>Anti-cheat review, load test, in-Kingdom deploy, App Store and Google Play submission.</p><span>$3,600</span></div>
+    </div>
+    <div class="two">
+      <div class="panel"><h2>Real in this demo</h2><ul class="ticks">
+        <li>Server thread owns shuffle, deal, turn order, legality, scoring and settlement</li>
+        <li>Per-seat messages: your phone never receives another hand</li>
+        <li>Commit-reveal shuffle checked with WebCrypto</li>
+        <li>Double-entry coin ledger with idempotent settlement and no cash-out path</li>
+        <li>Drop / reconnect with 8 s seat grace, bot takeover, full resync</li>
+        <li>Delayed spectator feed, preset chat with rate limit</li>
+        <li>Arabic / English with right-to-left layout</li>
+        <li>Referee tests: <code>npm test</code> (13 tests) and the Stress tab</li></ul></div>
+      <div class="panel"><h2>Stand-ins to replace</h2><ul class="ticks warn">
+        <li>Card rules: a Baloot-style trick game with a challenge / withdraw round, until your rulebook arrives</li>
+        <li>Web Worker in place of the Nakama server</li>
+        <li>Bots are simple heuristics</li>
+        <li>Coin store and subscriptions are drawn, not wired</li></ul>
+        <h2 class="mt">Credits</h2><ul class="credits">
+        <li>three.js r170, MIT</li>
+        <li>HDRI “Royal Esplanade”, Poly Haven, CC0</li>
+        <li>“Specular Silk Pouf” model, Wayfair LLC / Eric Chadwick, CC BY 4.0 (Khronos glTF Sample Assets)</li>
+        <li>Tajawal and Reem Kufi fonts, SIL OFL</li>
+        <li>Everything else (cards, felt, Sadu weave, Najdi frieze, mashrabiya, dallah, lanterns, sounds) is generated in code · <a href="cards.html" style="color:var(--gold)">see the full deck</a></li></ul></div>
+    </div>
+  </div>
+</section>
+</main>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
